@@ -40,8 +40,28 @@ Vector Triangle::getNormal(Vector point)
 
 bool Triangle::intercepts(Ray& r, float& t ) {
 
-	//PUT HERE YOUR CODE
-	return (false);
+	Vector v0v1 = points[0] - points[1];
+	Vector v0v2 = points[0] - points[2];
+
+	Vector pvec = r.direction % v0v2;
+	float det = v0v1 * pvec;
+
+	if (det < EPSILON) return false;
+
+	float invDet = 1 / det;
+
+	Vector tvec = r.origin - points[0];
+	float u = (tvec * pvec) * invDet;
+	if (u < 0 || u > 1) return false;
+
+	Vector qvec = tvec % v0v1;
+	float v = (r.direction * qvec) * invDet;
+	if (v < 0 || u + v > 1) return false;
+
+	t = (v0v2 * qvec) * invDet;
+
+
+	return (true);
 }
 
 Plane::Plane(Vector& a_PN, float a_D)
@@ -82,11 +102,30 @@ Vector Plane::getNormal(Vector point)
   return PN;
 }
 
-
 bool Sphere::intercepts(Ray& r, float& t )
 {
-	//PUT HERE YOUR CODE
-  return (false);
+	// geometric solution from https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-sphere-intersection.html
+	float t0, t1;
+
+	Vector L = center - r.origin;
+	float tca = L * r.direction;
+	if (tca < 0) return false; // intersection behind the ray's origin
+	float d2 = L * L - tca * tca;
+	if (d2 > radius * radius) return false;
+	float thc = sqrt(radius * radius - d2);
+	t0 = tca - thc;
+	t1 = tca + thc;
+
+	if (t0 > t1) std::swap(t0, t1);
+
+	if (t0 < 0) {
+		t0 = t1;
+		if (t0 < 0) return false;
+	}
+
+	t = t0;
+
+	return true;
 }
 
 
