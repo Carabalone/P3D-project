@@ -84,7 +84,10 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
    float l;
 
    //Calculate the normal plane: counter-clockwise vectorial product.
-   PN = Vector(0, 0, 0);		
+   Vector P10 = P0 - P1;
+   Vector P12 = P2 - P0;
+
+   PN = P10 % P12; // Not sure if this is counter-clockwise
 
    if ((l=PN.length()) == 0.0)
    {
@@ -94,7 +97,7 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
    {
      PN.normalize();
 	 //Calculate D
-     D  = 0.0f;
+     D  = 0.0f; // What is D? distance from point? (which points)?
    }
 }
 
@@ -104,7 +107,18 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
 
 bool Plane::intercepts( Ray& r, float& t )
 {
-	//PUT HERE YOUR CODE
+	// geometric solution from https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection.html
+
+	Vector point = Vector(0, 0, 0); // whats the point?
+	PN = getNormal(point);
+	float denom = PN * r.direction;
+
+	if (denom > EPSILON) {
+		Vector p0l0 = point - r.origin;
+		t = (p0l0 * PN) / denom;
+		return (t >= 0);
+	}
+
    return (false);
 }
 
