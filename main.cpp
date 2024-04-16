@@ -464,7 +464,7 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 			}
 		}
 	}
-	if (nearestHit - FLT_MAX < EPSILON || nearestObject == NULL) {
+	if (nearestObject == NULL) {
 		return false;
 	}
 	return true;
@@ -475,7 +475,7 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
-	Color color;
+	Color color = Color();
 
 	float nearestHit = FLT_MAX;
 	Object* nearestObject = NULL;
@@ -489,18 +489,29 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		if (scene->getLight(i)->position * normal > 0) {
-			Ray shadowRay(hitPoint, scene->getLight(i)->position - hitPoint);
+			Vector lightVector = scene->getLight(i)->position - hitPoint;
+			Ray shadowRay(hitPoint, lightVector);
 
 			float nearestShadowHit = FLT_MAX;
 			Object* nearestShadowObject = NULL;
 			if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
 				// no object between the hit point and the light
-				// color = diffuse color + specular color
+				Material* material = nearestObject->GetMaterial();
+				Vector hitpointToEye = ray.direction * -1;
+				Vector halfway = (lightVector + hitpointToEye).normalize();
+
+				Color diffuseColor = material->GetDiffColor();
+				float diffuse = material->GetDiffuse() * (normal * lightVector);
+
+				Color specColor = material->GetSpecColor();
+				float specular = material->GetSpecular() * std::pow((halfway * normal), material->GetShine());
+
+				color += specColor * specular + diffuseColor * diffuse;
 			}
 		}
 	}
 
-	return Color(0.0f, 0.0f, 0.0f);
+	return color;
 }
 
 
@@ -517,6 +528,7 @@ void renderScene()
 		glClear(GL_COLOR_BUFFER_BIT);
 		scene->GetCamera()->SetEye(Vector(camX, camY, camZ));  //Camera motion
 	}
+	int total = RES_X * RES_Y;
 
 	for (int y = 0; y < RES_Y; y++)
 	{
@@ -528,13 +540,9 @@ void renderScene()
 			pixel.x = x + 0.5f;
 			pixel.y = y + 0.5f;
 
-			/*YOUR 2 FUNTIONS:
 			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
 
 			color = rayTracing(ray, 1, 1.0).clamp();
-			*/
-
-			color = scene->GetBackgroundColor(); //TO CHANGE - just for the template
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
@@ -549,9 +557,17 @@ void renderScene()
 
 				colors[index_col++] = (float)color.b();
 			}
+
+			int current = y * RES_X + x * y;
+			if (current != 0 && current % 250000 == 0) {
+				//std::cout << "color(" << color.r() << ", " << color.g() << ", " << color.b() << ")" << std::endl;
+				std::cout << "[DEBUG] Progress: " << current << "/" << total << std::endl;
+			}
 		}
 
 	}
+
+	std::cout << "[DEBUG] finished" << std::endl;
 	if (drawModeEnabled) {
 		drawPoints();
 		glutSwapBuffers();
