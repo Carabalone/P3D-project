@@ -450,12 +450,56 @@ void setupGLUT(int argc, char* argv[])
 	}
 }
 
+bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
+{
+	nearestHit = FLT_MAX;
+	nearestObject = NULL;
+	for (int i = 0; i < scene->getNumObjects(); i++) {
+		Object* object = scene->getObject(i);
+		float dist;
+		if (object->intercepts(ray, dist)) {
+			if (dist < nearestHit) {
+				nearestHit = dist;
+				nearestObject = object;
+			}
+		}
+	}
+	if (nearestHit - FLT_MAX < EPSILON || nearestObject == NULL) {
+		return false;
+	}
+	return true;
+}
+
 
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
-	//INSERT HERE YOUR CODE
+	Color color;
+
+	float nearestHit = FLT_MAX;
+	Object* nearestObject = NULL;
+
+	if (!getNearestIntersection(ray, nearestHit, nearestObject)) {
+		return scene->GetBackgroundColor();
+	}
+
+	Vector hitPoint = ray.origin + ray.direction * nearestHit;
+	Vector normal = nearestObject->getNormal(hitPoint);
+
+	for (int i = 0; i < scene->getNumLights(); i++) {
+		if (scene->getLight(i)->position * normal > 0) {
+			Ray shadowRay(hitPoint, scene->getLight(i)->position - hitPoint);
+
+			float nearestShadowHit = FLT_MAX;
+			Object* nearestShadowObject = NULL;
+			if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
+				// no object between the hit point and the light
+				// color = diffuse color + specular color
+			}
+		}
+	}
+
 	return Color(0.0f, 0.0f, 0.0f);
 }
 

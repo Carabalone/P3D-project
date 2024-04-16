@@ -12,12 +12,23 @@ Triangle::Triangle(Vector& P0, Vector& P1, Vector& P2)
 	points[0] = P0; points[1] = P1; points[2] = P2;
 
 	/* Calculate the normal */
-	normal = Vector(0, 0, 0);
+	Vector p0p1 = P1 - P0;
+	Vector p0p2 = P2 - P0;
+
+	normal = p0p1 % p0p2;
 	normal.normalize();
 
-	//YOUR CODE to Calculate the Min and Max for bounding box
-	Min = Vector(+FLT_MAX, +FLT_MAX, +FLT_MAX);
-	Max = Vector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+	// Calculate the bounding box
+	Min = Vector(
+		std::fmin(P0.x, std::fmin(P1.x, P2.x)),
+		std::fmin(P0.y, std::fmin(P1.y, P2.y)),
+		std::fmin(P0.z, std::fmin(P1.z, P2.z))
+	);
+	Max = Vector(
+		std::fmax(P0.x, std::fmax(P1.x, P2.x)),
+		std::fmax(P0.y, std::fmax(P1.y, P2.y)),
+		std::fmax(P0.z, std::fmax(P1.z, P2.z))
+	);
 
 
 	// enlarge the bounding box a bit just in case...
@@ -137,9 +148,11 @@ Vector Sphere::getNormal( Vector point )
 
 AABB Sphere::GetBoundingBox() {
 	Vector a_min;
-	Vector a_max ;
+	Vector a_max;
 
-	//PUT HERE YOUR CODE
+	a_min = center + Vector(-1, -1, -1) * radius;
+	a_max = center + Vector(1, 1, 1) * radius;
+
 	return(AABB(a_min, a_max));
 }
 
