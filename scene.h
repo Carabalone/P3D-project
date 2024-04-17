@@ -132,6 +132,11 @@ public:
 	bool intercepts(Ray& r, float& t);
 	Vector getNormal(Vector point);
 
+	const bool inBoundsX(const Vector& point);
+	const bool inBoundsY(const Vector& point);
+	const bool inBoundsZ(const Vector& point);
+
+
 private:
 	Vector min;
 	Vector max;

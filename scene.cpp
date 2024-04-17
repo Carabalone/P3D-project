@@ -85,8 +85,7 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
    else
    {
      PN.normalize();
-	 //Calculate D
-     D  = 0.0f; // What is D? distance from point? (which points)?
+	 D = P1.length();
    }
 }
 
@@ -98,12 +97,12 @@ bool Plane::intercepts( Ray& r, float& t )
 {
 	// geometric solution from https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection.html
 
-	Vector point = Vector(0, 0, 0); // whats the point?
-	PN = getNormal(point);
+	Vector p0 = PN * D;
+
 	float denom = PN * r.direction;
 
 	if (denom > EPSILON) {
-		Vector p0l0 = point - r.origin;
+		Vector p0l0 = p0 - r.origin;
 		t = (p0l0 * PN) / denom;
 		return (t >= 0);
 	}
@@ -142,7 +141,6 @@ bool Sphere::intercepts(Ray& r, float& t )
 	return true;
 }
 
-
 Vector Sphere::getNormal( Vector point )
 {
 	Vector normal = point - center;
@@ -169,12 +167,94 @@ AABB aaBox::GetBoundingBox() {
 
 bool aaBox::intercepts(Ray& ray, float& t)
 {
-	//PUT HERE YOUR CODE
-		return (false);
+	// geometric solution from https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection.html
+
+	Vector invdir = Vector(0,0,0);
+	int sign[3] = { 0,0,0 };
+
+	invdir.x = 1 / ray.direction.x;
+	invdir.y = 1 / ray.direction.y;
+	invdir.z = 1 / ray.direction.z;
+
+	sign[0] = (invdir.x < 0);
+	sign[1] = (invdir.y < 0);
+	sign[2] = (invdir.z < 0);
+
+	Vector bounds[2] = { min, max };
+
+	float tmin, tmax, tymin, tymax, tzmin, tzmax;
+
+	tmin = (bounds[sign[0]].x - ray.origin.x) * invdir.x;
+	tmax = (bounds[1 - sign[0]].x - ray.origin.x) * invdir.x;
+	tymin = (bounds[sign[1]].y - ray.origin.y) * invdir.y;
+	tymax = (bounds[1 - sign[1]].y - ray.origin.y) * invdir.y;
+
+	if ((tmin > tymax) || (tymin > tmax))
+		return false;
+
+	if (tymin > tmin)
+		tmin = tymin;
+	if (tymax < tmax)
+		tmax = tymax;
+
+	tzmin = (bounds[sign[2]].z - ray.origin.z) * invdir.z;
+	tzmax = (bounds[1 - sign[2]].z - ray.origin.z) * invdir.z;
+
+	if ((tmin > tzmax) || (tzmin > tmax))
+		return false;
+
+	if (tzmin > tmin)
+		tmin = tzmin;
+	if (tzmax < tmax)
+		tmax = tzmax;
+
+	t = tmin;
+
+	if (t < 0)
+	{
+		t = tmax;
+		if (t < 0) return false;
+	}
+
+	return true;
+
+}
+
+const bool aaBox::inBoundsX(const Vector& point) {
+	if (point.x > min.x && point.x < max.x) return true;
+	return false;
+}
+
+const bool aaBox::inBoundsY(const Vector& point) {
+	if (point.y > min.y && point.y < max.y) return true;
+	return false;
+}
+
+const bool aaBox::inBoundsZ(const Vector& point) {
+	if (point.z > min.z && point.z < max.z) return true;
+	return false;
 }
 
 Vector aaBox::getNormal(Vector point)
 {
+	Vector Normal = Vector(0, 0, 0);
+
+	if (inBoundsX(point))
+		if (inBoundsY(point))
+			if (point.z == min.z) return Vector(0, 0, -1);
+			else if (point.z == max.z) return Vector(0, 0, 1);
+
+	if (inBoundsX(point))
+		if (inBoundsZ(point))
+			if (point.y == min.y) return Vector(0, -1, 0);
+			else if (point.y == max.y) return Vector(0, 1, 0);
+
+	if (inBoundsZ(point))
+		if (inBoundsY(point))
+			if (point.x == min.x) return Vector(-1, 0, 0);
+			else if (point.x == max.x) return Vector(1, 0, 0);
+
+
 	return Normal;
 }
 
