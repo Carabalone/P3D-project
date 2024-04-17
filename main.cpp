@@ -488,8 +488,10 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Vector normal = nearestObject->getNormal(hitPoint);
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
-		if (scene->getLight(i)->position * normal > 0) {
-			Vector lightVector = scene->getLight(i)->position - hitPoint;
+		Vector lightVector = scene->getLight(i)->position - hitPoint;
+		lightVector.normalize();
+		if (lightVector * normal > 0) { 
+			
 			Ray shadowRay(hitPoint, lightVector);
 
 			float nearestShadowHit = FLT_MAX;
@@ -498,7 +500,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				// no object between the hit point and the light
 				Material* material = nearestObject->GetMaterial();
 				Vector hitpointToEye = ray.direction * -1;
-				Vector halfway = (lightVector + hitpointToEye).normalize();
+				Vector halfway = (lightVector + hitpointToEye).normalize(); 
 
 				Color diffuseColor = material->GetDiffColor();
 				float diffuse = material->GetDiffuse() * (normal * lightVector);
@@ -506,9 +508,19 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				Color specColor = material->GetSpecColor();
 				float specular = material->GetSpecular() * std::pow((halfway * normal), material->GetShine());
 
-				color += specColor * specular + diffuseColor * diffuse;
+				color += diffuseColor * diffuse + specColor * specular;
 			}
 		}
+	}
+
+	if (depth >= MAX_DEPTH) return color;
+
+	if (nearestObject->GetMaterial()->GetReflection() != 0) {
+		Vector reflectionDir = ray.direction - normal * 2 * (ray.direction * normal);
+		Ray refRay = Ray(hitPoint, reflectionDir);
+		Color reflectionColor = rayTracing(refRay, depth + 1, 0);
+		float specular = nearestObject->GetMaterial()->GetSpecular() * std::pow((halfway * normal), nearestObject->GetMaterial()->GetShine()); //to finish
+		color += reflectionColor*specular;
 	}
 
 	return color;
