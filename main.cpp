@@ -472,6 +472,29 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 
 
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
+void fresnel(Vector& I, Vector& N, const float& ior, float& kr)
+{
+	// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
+
+	float cosi = clamp(-1, 1, I*N);
+	float etai = 1, etat = ior;
+	if (cosi > 0) { std::swap(etai, etat); }
+	// Compute sini using Snell's law
+	float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi));
+	// Total internal reflection
+	if (sint >= 1) {
+		kr = 1;
+	}
+	else {
+		float cost = sqrtf(std::max(0.f, 1 - sint * sint));
+		cosi = fabsf(cosi);
+		float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+		float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+		kr = (Rs * Rs + Rp * Rp) / 2;
+	}
+	// As a consequence of the conservation of energy, transmittance is given by:
+	// kt = 1 - kr;
+}
 
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
@@ -518,9 +541,36 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	if (nearestObject->GetMaterial()->GetReflection() != 0) {
 		Vector reflectionDir = ray.direction - normal * 2 * (ray.direction * normal);
 		Ray refRay = Ray(hitPoint, reflectionDir);
-		Color reflectionColor = rayTracing(refRay, depth + 1, 0);
-		float specular = nearestObject->GetMaterial()->GetSpecular() * std::pow((halfway * normal), nearestObject->GetMaterial()->GetShine()); //to finish
-		color += reflectionColor*specular;
+		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
+
+		float kr = 0;
+		fresnel(ray.direction, normal, ior_1, kr);
+		color += reflectionColor*kr;
+	}
+
+	if (nearestObject->GetMaterial()->GetTransmittance() != 0) {
+
+		// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
+
+		float kr = 0;
+		fresnel(ray.direction, normal, ior_1, kr);
+		float kt = 1 - kr;
+
+		float cosi = clamp(-1, 1, ray.direction*normal);
+		float etai = 1, etat = ior_1;
+		Vector n = normal;
+
+		if (cosi < 0) { cosi = -cosi; }
+		else { std::swap(etai, etat); n = normal*(-1); }
+		float eta = etai / etat;
+
+
+		Vector refractedDir =  ray.direction * eta  + normal*(eta * cosi - sqrtf(kt));
+		Ray refRay = Ray(hitPoint, refractedDir);
+		Color  refractedColor = rayTracing(refRay, depth + 1, ior_1);
+
+	
+		color += refractedColor * kt;
 	}
 
 	return color;
