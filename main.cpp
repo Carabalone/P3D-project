@@ -509,6 +509,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	Vector hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector normal = nearestObject->getNormal(hitPoint);
+	hitPoint = hitPoint + normal* EPSILON;
+
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		Vector lightVector = scene->getLight(i)->position - hitPoint;
@@ -538,7 +540,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	if (depth >= MAX_DEPTH) return color;
 
-	if (nearestObject->GetMaterial()->GetReflection() != 0) {
+	if (nearestObject->GetMaterial()->GetReflection() > EPSILON) {
 		Vector reflectionDir = ray.direction - normal * 2 * (ray.direction * normal);
 		Ray refRay = Ray(hitPoint, reflectionDir);
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
@@ -548,7 +550,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		color += reflectionColor*kr;
 	}
 
-	if (nearestObject->GetMaterial()->GetTransmittance() != 0) {
+	if (nearestObject->GetMaterial()->GetTransmittance() > EPSILON) {
 
 		// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
 
@@ -604,7 +606,7 @@ void renderScene()
 
 			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
 
-			color = rayTracing(ray, 1, 1.0).clamp();
+			color = rayTracing(ray, MAX_DEPTH, 1.0).clamp();
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
