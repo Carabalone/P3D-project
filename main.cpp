@@ -540,16 +540,16 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	if (depth >= MAX_DEPTH) return color;
 
-	if (nearestObject->GetMaterial()->GetReflection() > EPSILON) {
-		Vector reflectionDir = ray.direction - normal * 2 * (ray.direction * normal);
+	if (nearestObject->GetMaterial()->GetReflection() > 0.1) {
+		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 		Ray refRay = Ray(hitPoint, reflectionDir);
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
 
 		float kr = 0;
 		fresnel(ray.direction, normal, ior_1, kr);
-		color += reflectionColor*kr;
+		color += reflectionColor;
 	}
-
+	return color;
 	if (nearestObject->GetMaterial()->GetTransmittance() > EPSILON) {
 
 		// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
@@ -606,7 +606,7 @@ void renderScene()
 
 			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
 
-			color = rayTracing(ray, MAX_DEPTH, 1.0).clamp();
+			color = rayTracing(ray, 1, 1.0).clamp();
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
@@ -625,13 +625,13 @@ void renderScene()
 			int current = y * RES_X + x * y;
 			if (current != 0 && current % 250000 == 0) {
 				//std::cout << "color(" << color.r() << ", " << color.g() << ", " << color.b() << ")" << std::endl;
-				std::cout << "[DEBUG] Progress: " << current << "/" << total << std::endl;
+				//std::cout << "[DEBUG] Progress: " << current << "/" << total << std::endl;
 			}
 		}
 
 	}
 
-	std::cout << "[DEBUG] finished" << std::endl;
+	//std::cout << "[DEBUG] finished" << std::endl;
 	if (drawModeEnabled) {
 		drawPoints();
 		glutSwapBuffers();
