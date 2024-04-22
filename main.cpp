@@ -509,7 +509,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	Vector hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector normal = nearestObject->getNormal(hitPoint);
-	hitPoint = hitPoint + normal* EPSILON;
+	hitPoint = hitPoint + normal * EPSILON;
 
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
@@ -540,19 +540,25 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	if (depth >= MAX_DEPTH) return color;
 
-	if (nearestObject->GetMaterial()->GetReflection() > 0.1) {
+	if (nearestObject->GetMaterial()->GetReflection() > EPSILON) {
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
+			
+		float roughness = 0.1f;
+
+		reflectionDir = reflectionDir +  rnd_unit_sphere() * roughness;
 		Ray refRay = Ray(hitPoint, reflectionDir);
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
 
 		float kr = 0;
-		fresnel(ray.direction, normal, ior_1, kr);
-		color += reflectionColor;
+		fresnel(ray.direction, normal, ior_1, kr); // change to approx from slides
+		color += reflectionColor*0.5f;
 	}
-	return color;
+
+
 	if (nearestObject->GetMaterial()->GetTransmittance() > EPSILON) {
 
 		// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
+
 
 		float kr = 0;
 		fresnel(ray.direction, normal, ior_1, kr);
@@ -588,6 +594,8 @@ void renderScene()
 	int index_col = 0;
 	unsigned int counter = 0;
 
+	set_rand_seed(time(NULL) * time(NULL));
+
 	if (drawModeEnabled) {
 		glClear(GL_COLOR_BUFFER_BIT);
 		scene->GetCamera()->SetEye(Vector(camX, camY, camZ));  //Camera motion
@@ -604,9 +612,27 @@ void renderScene()
 			pixel.x = x + 0.5f;
 			pixel.y = y + 0.5f;
 
-			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+			int n = scene->GetSamplesPerPixel();
 
-			color = rayTracing(ray, 1, 1.0).clamp();
+			for (int p = 0; p < n; p++) {
+				for (int q = 0; q < n; q++) {
+
+
+					Vector subpixel;  //viewport coordinates
+					subpixel.x = x + (p+ rand_float()) /n;
+					subpixel.y = y + (q + rand_float()) / n;
+
+					Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+					color += rayTracing(subray, 1, 1.0).clamp();
+
+				}
+			}
+
+			color = color / (float)pow(n, 2);
+
+			// Without jittering antialiasing
+			//Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+			//color = rayTracing(ray, 1, 1.0).clamp();
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
