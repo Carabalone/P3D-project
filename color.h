@@ -60,6 +60,10 @@ public:
   Color		operator *=	(Color c)
 				{ R*=c.R; G*=c.G; B*=c.B; return *this; }
 
+  Color		operator /	(float c)
+  {				R /= c; G /= c; B /= c; return *this;}
+
+
    friend inline
   istream&	operator >>	(istream& s, Color& c)
 	{ return s >> c.R >> c.G >> c.B; }
