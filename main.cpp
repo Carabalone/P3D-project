@@ -528,10 +528,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				Vector halfway = (lightVector + hitpointToEye).normalize(); 
 
 				Color diffuseColor = material->GetDiffColor();
-				float diffuse = material->GetDiffuse() * (normal * lightVector);
+				float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
 
 				Color specColor = material->GetSpecColor();
-				float specular = material->GetSpecular() * std::pow((halfway * normal), material->GetShine());
+				float specular = material->GetSpecular() * 
+					std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
 
 				color += diffuseColor * diffuse + specColor * specular;
 			}
@@ -608,21 +609,19 @@ void renderScene()
 		{
 			Color color;
 
-			Vector pixel;  //viewport coordinates
-			pixel.x = x + 0.5f;
-			pixel.y = y + 0.5f;
-
 			int n = scene->GetSamplesPerPixel();
 
 			for (int p = 0; p < n; p++) {
 				for (int q = 0; q < n; q++) {
 
-
 					Vector subpixel;  //viewport coordinates
 					subpixel.x = x + (p+ rand_float()) /n;
 					subpixel.y = y + (q + rand_float()) / n;
+					//subpixel.x = x + 0.5f;
+					//subpixel.y = y + 0.5f;
 
 					Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+					//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
 					color += rayTracing(subray, 1, 1.0).clamp();
 
 				}

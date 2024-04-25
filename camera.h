@@ -83,6 +83,25 @@ public:
 		return Ray(eye, ray_dir);  
 	}
 
+	Ray RandomDiskPrimaryRay(const Vector& pixel_sample) // DOF: Rays cast from a random disk sample to a pixel sample
+	{
+		Vector ray_dir;
+		Vector eye_offset;
+
+		Vector lens_sample = rnd_unit_disk() * aperture / 2.0f;
+
+		eye_offset = eye + u * lens_sample.x + v * lens_sample.y;
+
+		ray_dir = (
+			u * ((pixel_sample.x * focal_ratio) - lens_sample.x) +
+			v * ((pixel_sample.y * focal_ratio) - lens_sample.y) +
+			n * (-1 * plane_dist)
+		).normalize();
+
+
+		return Ray(eye_offset, ray_dir);
+	}
+
 	Ray PrimaryRay(const Vector& lens_sample, const Vector& pixel_sample) // DOF: Rays cast from  a thin lens sample to a pixel sample
 	{
 		
