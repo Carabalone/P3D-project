@@ -18,6 +18,7 @@ private:
 	float w, h;
 	int res_x, res_y;
 	Vector u, v, n;
+	bool debug = true;
 
 public:
 	Vector GetEye() { return eye; }
@@ -80,6 +81,11 @@ public:
 			n * (- 1 * plane_dist)
 		).normalize();
 
+		//if (debug) {
+		//	printf("Eye: (%f, %f, %f)\n", eye.x, eye.y, eye.z);
+		//	printf("Ray Direction: (%f, %f, %f)\n", ray_dir.x, ray_dir.y, ray_dir.z);
+		//}
+
 		return Ray(eye, ray_dir);  
 	}
 
@@ -88,14 +94,16 @@ public:
 		Vector ray_dir;
 		Vector eye_offset;
 
-		Vector lens_sample = rnd_unit_disk() * aperture / 2.0f;
+		set_rand_seed(time(NULL) * time(NULL));
+
+		Vector lens_sample = rnd_unit_disk() * (GetAperture() / 2.0f);
 
 		eye_offset = eye + u * lens_sample.x + v * lens_sample.y;
 
 		ray_dir = (
-			u * ((pixel_sample.x * focal_ratio) - lens_sample.x) +
-			v * ((pixel_sample.y * focal_ratio) - lens_sample.y) +
-			n * (-1 * plane_dist)
+			u * (((pixel_sample.x + 0.5f) / res_x) - lens_sample.x) +
+			v * (((pixel_sample.y + 0.5f) / res_y) - lens_sample.y) +
+			n * (-1 * plane_dist * focal_ratio)
 		).normalize();
 
 
@@ -107,6 +115,24 @@ public:
 		
 		Vector ray_dir;
 		Vector eye_offset;
+		Vector ps;
+
+		ps.x = w * (pixel_sample.x / res_x - 0.5f);
+		ps.y = h * (pixel_sample.y / res_y - 0.5f);
+		ps.z = -plane_dist;
+
+		Vector p;
+		p.x = ps.x * focal_ratio;
+		p.y = ps.y * focal_ratio;
+		p.z = ps.z * focal_ratio;
+
+		Vector vX = u * (p.x - lens_sample.x);
+		Vector vY = v * (p.y - lens_sample.y);
+		Vector vZ = n * (p.z);
+
+		ray_dir = (vX + vY + vZ).normalize();
+
+		eye_offset = eye + u * lens_sample.x + v * lens_sample.y;
 
 		return Ray(eye_offset, ray_dir);
 	}
