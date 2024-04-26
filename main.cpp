@@ -515,12 +515,14 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		Vector lightVector = scene->getLight(i)->position - hitPoint;
 		lightVector.normalize();
+
 		if (lightVector * normal > 0) { 
 			
 			Ray shadowRay(hitPoint, lightVector);
 
 			float nearestShadowHit = FLT_MAX;
 			Object* nearestShadowObject = NULL;
+
 			if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
 				// no object between the hit point and the light
 				Material* material = nearestObject->GetMaterial();
@@ -586,7 +588,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 }
 
 
-
 // Render function by primary ray casting from the eye towards the scene's objects
 
 void renderScene()
@@ -617,10 +618,12 @@ void renderScene()
 					Vector subpixel;  //viewport coordinates
 					subpixel.x = x + (p+ rand_float()) /n;
 					subpixel.y = y + (q + rand_float()) / n;
-					//subpixel.x = x + 0.5f;
-					//subpixel.y = y + 0.5f;
+					subpixel.z = -1 * scene->GetCamera()->GetPlaneDist();
 
-					Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+					Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
+
+					//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+					Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
 					//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
 					color += rayTracing(subray, 1, 1.0).clamp();
 
