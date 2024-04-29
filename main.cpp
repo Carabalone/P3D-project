@@ -82,6 +82,8 @@ int RES_X, RES_Y;
 
 int WindowHandle = 0;
 
+bool skybox_flg = false;
+
 
 
 /////////////////////////////////////////////////////////////////////// ERRORS
@@ -470,7 +472,6 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 	return true;
 }
 
-
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 void fresnel(Vector& I, Vector& N, const float& ior, float& kr)
 {
@@ -502,12 +503,30 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	float nearestHit = FLT_MAX;
 	Object* nearestObject = NULL;
+	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
 
-	if (!getNearestIntersection(ray, nearestHit, nearestObject)) {
-		return scene->GetBackgroundColor();
+	switch (scene->GetAccelStruct()) {
+		case (NONE): {
+			if (!getNearestIntersection(ray, nearestHit, nearestObject)) {
+				return scene->GetBackgroundColor();
+			}
+			hitPoint = ray.origin + ray.direction * nearestHit;
+			break;
+		};
+		case (GRID_ACC): {
+			if (!grid_ptr->Traverse(ray, &nearestObject, hitPoint)) {
+				if (skybox_flg) {
+					color = scene->GetSkyboxColor(ray);
+				}
+				else {
+					color = (scene->GetBackgroundColor());
+				}
+				return color;
+			}
+			break;
+		}
 	}
 
-	Vector hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector normal = nearestObject->getNormal(hitPoint);
 	hitPoint = hitPoint + normal * EPSILON;
 
