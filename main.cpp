@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = true;
 
-bool P3F_scene = true; //choose between P3F scene or a built-in random scene
+bool P3F_scene = false; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
@@ -496,6 +496,7 @@ void fresnel(Vector& I, Vector& N, const float& ior, float& kr)
 	// kt = 1 - kr;
 }
 
+
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	Color color = Color();
@@ -508,9 +509,19 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	}
 
 	Vector hitPoint = ray.origin + ray.direction * nearestHit;
-	Vector normal = nearestObject->getNormal(hitPoint);
-	hitPoint = hitPoint + normal * EPSILON;
+	Vector geom_normal = nearestObject->getNormal(hitPoint);
 
+	//if ray.direction*normal < 0 -> calculate only the direct + reflection; otherway calculate only indirect
+	bool isInside = false;
+	Vector normal = geom_normal;
+
+	if (ray.direction * geom_normal > 0)
+	{
+		isInside = true;
+		normal = geom_normal *(-1);
+	}
+
+	hitPoint = hitPoint + normal * EPSILON;
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		Vector lightVector = scene->getLight(i)->position - hitPoint;
@@ -552,19 +563,13 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		Ray refRay = Ray(hitPoint, reflectionDir);
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
 
-		float kr = 0;
-		fresnel(ray.direction, normal, ior_1, kr); // change to approx from slides
-		color += reflectionColor*0.5f;
+		color += reflectionColor * nearestObject->GetMaterial()->GetReflection();// *coefficient from p3f 
 	}
 
 
 	if (nearestObject->GetMaterial()->GetTransmittance() > EPSILON) {
 
-		// from: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel.html
-
-
-		float kr = 0;
-		fresnel(ray.direction, normal, ior_1, kr);
+		/*fresnel(ray.direction, normal, ior_1, kr);
 		float kt = 1 - kr;
 
 		float cosi = clamp(-1, 1, ray.direction*normal);
@@ -575,13 +580,52 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		else { std::swap(etai, etat); n = normal*(-1); }
 		float eta = etai / etat;
 
-
 		Vector refractedDir =  ray.direction * eta  + normal*(eta * cosi - sqrtf(kt));
 		Ray refRay = Ray(hitPoint, refractedDir);
-		Color  refractedColor = rayTracing(refRay, depth + 1, ior_1);
+		Color  refractedColor = rayTracing(refRay, depth + 1, ior_1);*/
 
+		float kr = 0;
+		
+		Vector vt = normal*(hitPoint * (-1) * normal) - hitPoint * (-1);
+		Vector t = vt.normalize();
+
+		float sin_i = vt.length();
+		float cos_i = sqrtf(1 - (sin_i * sin_i));
+
+		float eta_i = ior_1; 
+		float eta_t = nearestObject->GetMaterial()->GetRefrIndex(); 
+
+		if (isInside) {
+			float temp = eta_i;
+			eta_i = eta_t;
+			eta_t = eta_i;
+		};
+
+		float sin_t = eta_i / eta_t * sin_i;
+		float cos_t = sqrtf(1 - (sin_t * sin_t));
+
+		float R0 = pow((eta_i - eta_t) / (eta_i + eta_t), 2);
+
+		if (eta_i > eta_t) {
+			kr = R0 + (1 - R0) * pow((1 - cos_t), 5);
+		}
+		kr = R0 + (1 - R0) * pow((1 - cos_i), 5);
+
+		float kt = 1 - kr;
+
+		Vector refractedDir = t * sin_t + normal * ((-1) * cos_t);
+		Ray refrRay = Ray(hitPoint, refractedDir);
+		Color  refractedColor = rayTracing(refrRay, depth + 1, eta_t); 
+
+		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
+
+		float roughness = 0.1f;
+
+		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
+		Ray reflRay = Ray(hitPoint, reflectionDir);
+		Color reflectionColor = rayTracing(reflRay, depth + 1, eta_t);
 	
-		color += refractedColor * kt;
+		color += reflectionColor * kr + refractedColor * kt;
 	}
 
 	return color;
