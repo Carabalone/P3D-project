@@ -489,114 +489,127 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	//check if ray is outside: if ray.direction*normal < 0 -> normal * (-1)
 	bool isInside = false;
-	Vector normal = geom_normal;
+	Vector normal = geom_normal;  //shading normal
+
 
 	if (ray.direction * geom_normal > 0)
 	{
 		isInside = true;
-		normal = geom_normal *(-1);
+		normal = geom_normal * (-1);
 	}
-	//add offset
-	hitPoint = hitPoint + normal * EPSILON;
+	//add offset   Avoid this, because it will depend if it is refraction or reflection
+	//hitPoint = hitPoint + normal * EPSILON;
 
-	for (int i = 0; i < scene->getNumLights(); i++) {
+	Vector bias = normal * EPSILON;  //bias with direction of shading normal
 
-		//Soft shadows
-		//Vector r = Vector(rand_float()-0.5f, rand_float()-0.5f, 0);
-		Vector r = Vector(0.f, 0.f, 0.f);
+	//Calculation of direct illumination only if outside
 
-		Vector lightVector = scene->getLight(i)->position - hitPoint + r;
-		lightVector.normalize();
+	if (!isInside) {
 
-		if (lightVector * normal > 0) { 
-			
-			Ray shadowRay(hitPoint, lightVector);
+		for (int i = 0; i < scene->getNumLights(); i++) {
 
-			float nearestShadowHit = FLT_MAX;
-			Object* nearestShadowObject = NULL;
+			//Soft shadows
+			//Vector r = Vector(rand_float()-0.5f, rand_float()-0.5f, 0);
+			Vector r = Vector(0.f, 0.f, 0.f);
 
-			if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
-				// no object between the hit point and the light
-				Material* material = nearestObject->GetMaterial();
-				Vector hitpointToEye = ray.direction * -1;
-				Vector halfway = (lightVector + hitpointToEye).normalize(); 
+			Vector lightVector = scene->getLight(i)->position - hitPoint + r;
+			lightVector.normalize();
 
-				Color diffuseColor = material->GetDiffColor();
-				float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
+			if (lightVector * normal > 0) {
 
-				Color specColor = material->GetSpecColor();
-				float specular = material->GetSpecular() * 
-					std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
+				Ray shadowRay(hitPoint + bias, lightVector);
 
-				color += diffuseColor * diffuse + specColor * specular;
+				float nearestShadowHit = FLT_MAX;
+				Object* nearestShadowObject = NULL;
+
+				if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
+					// no object between the hit point and the light
+					Material* material = nearestObject->GetMaterial();
+					Vector hitpointToEye = ray.direction * -1;
+					Vector halfway = (lightVector + hitpointToEye).normalize();
+
+					Color diffuseColor = material->GetDiffColor();
+					float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
+
+					Color specColor = material->GetSpecColor();
+					float specular = material->GetSpecular() *
+						std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
+
+					color += diffuseColor * diffuse + specColor * specular;
+				}
 			}
 		}
 	}
 
 	if (depth >= MAX_DEPTH) return color;
-	
-	//reflection
-	if (nearestObject->GetMaterial()->GetReflection() > EPSILON) {
+
+	//reflection with a reflective non-dielectric
+	if (nearestObject->GetMaterial()->GetReflection() > EPSILON && nearestObject->GetMaterial()->GetTransmittance() == 0.0) {
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
-			
+
 		float roughness = 0.1f;
 
-		reflectionDir = reflectionDir +  rnd_unit_sphere() * roughness;
-		Ray refRay = Ray(hitPoint, reflectionDir);
-		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
+		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
+		Ray refRay = Ray(hitPoint + bias, reflectionDir);
+		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1) * nearestObject->GetMaterial()->GetSpecColor();
 
 		color += reflectionColor * nearestObject->GetMaterial()->GetReflection();// *coefficient from p3f 
 	}
 
 	//dielectric
-	if (nearestObject->GetMaterial()->GetTransmittance() > EPSILON) {
+	if (nearestObject->GetMaterial()->GetTransmittance() == 1.0) {
 
-		float kr = 0;
-		
-		Vector vt = normal*(hitPoint * (-1) * normal) - hitPoint * (-1);
+		float kr = 1;  //in case of total reflection
+
+		Vector vt = normal * (hitPoint * (-1) * normal) - hitPoint * (-1);
 		Vector t = vt.normalize();
 
 		float sin_i = vt.length();
 		float cos_i = sqrtf(1 - (sin_i * sin_i));
 
-		float eta_i = ior_1; 
-		float eta_t = nearestObject->GetMaterial()->GetRefrIndex(); 
+		float eta_i = ior_1;
+		float eta_t = nearestObject->GetMaterial()->GetRefrIndex();
 
 		if (isInside) {
-			eta_i = eta_t;
-			eta_t = ior_1;
+			//eta_i = eta_t;
+			eta_t = 1.0;  //air
 		};
 
 		float sin_t = eta_i / eta_t * sin_i;
 		float cos_t = sqrtf(1 - (sin_t * sin_t));
 
-		float R0 = pow((eta_i - eta_t) / (eta_i + eta_t), 2);
+		if (sin_t * sin_t < 1.0) {   //not total reflection
+			//float cos_t = sqrtf(1 - (sin_t * sin_t));
 
-		if (eta_i > eta_t) {
-			kr = R0 + (1 - R0) * pow((1 - cos_t), 5);
+			float R0 = pow((eta_i - eta_t) / (eta_i + eta_t), 2);
+
+			if (eta_i > eta_t) {
+				kr = R0 + (1 - R0) * pow((1 - cos_t), 5);
+			}
+			kr = R0 + (1 - R0) * pow((1 - cos_i), 5);
 		}
-		kr = R0 + (1 - R0) * pow((1 - cos_i), 5);
-
 		float kt = 1 - kr;
 
-		Vector refractedDir = t * sin_t + normal * ((-1) * cos_t);
-		Ray refrRay = Ray(hitPoint, refractedDir);
-		Color  refractedColor = rayTracing(refrRay, depth + 1, ior_1);
+		Color  refractedColor = Color();
+		if (kt > 0.0) {
+			Vector refractedDir = t * sin_t + normal * ((-1) * cos_t);
+			Ray refrRay = Ray(hitPoint - bias, refractedDir);
+			refractedColor = rayTracing(refrRay, depth + 1, eta_t);
+		}
 
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 
 		float roughness = 0.1f;
 
 		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
-		Ray reflRay = Ray(hitPoint, reflectionDir);
-		Color reflectionColor = rayTracing(reflRay, depth + 1, ior_1);
-	
+		Ray reflRay = Ray(hitPoint + bias, reflectionDir);
+		Color reflectionColor = rayTracing(reflRay, depth + 1, ior_1) * nearestObject->GetMaterial()->GetSpecColor();
+
 		color += reflectionColor * kr + refractedColor * kt;
 	}
 
 	return color;
 }
-
 
 // Render function by primary ray casting from the eye towards the scene's objects
 
