@@ -100,5 +100,8 @@
     <ClInclude Include="maths.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="comparePrimitives.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

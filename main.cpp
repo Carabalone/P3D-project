@@ -530,7 +530,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Vector normal = nearestObject->getNormal(hitPoint);
 	hitPoint = hitPoint + normal * EPSILON;
 
-
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		Vector lightVector = scene->getLight(i)->position - hitPoint;
 		lightVector.normalize();
