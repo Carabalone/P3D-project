@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = true;
 
-bool P3F_scene = false; //choose between P3F scene or a built-in random scene
+bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
