@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = true;
 
-bool P3F_scene = true; //choose between P3F scene or a built-in random scene
+bool P3F_scene = false; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
@@ -509,8 +509,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		for (int i = 0; i < scene->getNumLights(); i++) {
 
 			//Soft shadows
-			//Vector r = Vector(rand_float()-0.5f, rand_float()-0.5f, 0);
-			Vector r = Vector(0.f, 0.f, 0.f);
+			Vector r = Vector(rand_float()-0.5f, rand_float()-0.5f, 0);
+			//Vector r = Vector(0.f, 0.f, 0.f);
 
 			Vector lightVector = scene->getLight(i)->position - hitPoint + r;
 			lightVector.normalize();
@@ -557,16 +557,15 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	}
 
 	//dielectric
-	if (nearestObject->GetMaterial()->GetTransmittance() == 1.0) {
+	if (nearestObject->GetMaterial()->GetTransmittance() == 1.0 ) {
 
 		float kr = 1;  //in case of total reflection
 
 		Vector vt = normal * (ray.direction * (-1) * normal) - ray.direction * (-1);
-		Vector t = vt.normalize();
-
 		float sin_i = vt.length();
 		float cos_i = sqrtf(1 - (sin_i * sin_i));
 
+		Vector t = vt.normalize();
 		float eta_i = ior_1;
 		float eta_t = nearestObject->GetMaterial()->GetRefrIndex();
 
@@ -579,8 +578,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		float cos_t = sqrtf(1 - (sin_t * sin_t));
 
 		if (sin_t * sin_t < 1.0) {   //not total reflection
-			//float cos_t = sqrtf(1 - (sin_t * sin_t));
-
 			float R0 = powf((eta_i - eta_t) / (eta_i + eta_t), 2.0);
 
 			if (eta_i > eta_t) {
