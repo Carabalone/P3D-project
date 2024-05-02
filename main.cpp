@@ -561,7 +561,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		float kr = 1;  //in case of total reflection
 
-		Vector vt = normal * (hitPoint * (-1) * normal) - hitPoint * (-1);
+		Vector vt = normal * (ray.direction * (-1) * normal) - ray.direction * (-1);
 		Vector t = vt.normalize();
 
 		float sin_i = vt.length();
@@ -581,27 +581,30 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		if (sin_t * sin_t < 1.0) {   //not total reflection
 			//float cos_t = sqrtf(1 - (sin_t * sin_t));
 
-			float R0 = pow((eta_i - eta_t) / (eta_i + eta_t), 2);
+			float R0 = powf((eta_i - eta_t) / (eta_i + eta_t), 2.0);
 
 			if (eta_i > eta_t) {
-				kr = R0 + (1 - R0) * pow((1 - cos_t), 5);
+				kr = R0 + (1 - R0) * powf((1 - cos_t), 5.0);
 			}
-			kr = R0 + (1 - R0) * pow((1 - cos_i), 5);
+			kr = R0 + (1 - R0) * powf((1 - cos_i), 5.0);
 		}
 		float kt = 1 - kr;
 
 		Color  refractedColor = Color();
 		if (kt > 0.0) {
 			Vector refractedDir = t * sin_t + normal * ((-1) * cos_t);
+			//printf("Refractiton \n"); 
+			refractedDir.normalize();
 			Ray refrRay = Ray(hitPoint - bias, refractedDir);
 			refractedColor = rayTracing(refrRay, depth + 1, eta_t);
 		}
 
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 
-		float roughness = 0.1f;
-
+		float roughness = 0.f;
+		
 		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
+		reflectionDir.normalize();
 		Ray reflRay = Ray(hitPoint + bias, reflectionDir);
 		Color reflectionColor = rayTracing(reflRay, depth + 1, ior_1) * nearestObject->GetMaterial()->GetSpecColor();
 
