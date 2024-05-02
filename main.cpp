@@ -25,7 +25,7 @@
 #include "macros.h"
 
 //Enable OpenGL drawing.  
-bool drawModeEnabled = true;
+bool drawModeEnabled = false;
 
 bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
@@ -497,6 +497,29 @@ void fresnel(Vector& I, Vector& N, const float& ior, float& kr)
 	// kt = 1 - kr;
 }
 
+bool getShadowHit(Ray ray, Object* hitObj, float t) {
+	bool shadowHit;
+
+	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
+	switch (scene->GetAccelStruct()) {
+	case (NONE): {
+			ray.direction.normalize();
+			shadowHit = getNearestIntersection(ray, t, hitObj);
+			break;
+		};
+	case (GRID_ACC): {
+			shadowHit = grid_ptr->Traverse(ray, &hitObj, hitPoint);
+			break;
+		};
+	case (BVH_ACC): {
+			shadowHit = bvh_ptr->Traverse(ray, &hitObj, hitPoint);
+			break;
+		};
+	}
+
+	return shadowHit;
+}
+
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	Color color = Color();
@@ -524,7 +547,19 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				return color;
 			}
 			break;
-		}
+		};
+		case (BVH_ACC): {
+			if (!bvh_ptr->Traverse(ray, &nearestObject, hitPoint)) {
+				if (skybox_flg) {
+					color = scene->GetSkyboxColor(ray);
+				}
+				else {
+					color = (scene->GetBackgroundColor());
+				}
+				return color;
+			}
+			break;
+		};
 	}
 
 	Vector normal = nearestObject->getNormal(hitPoint);
@@ -532,7 +567,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	for (int i = 0; i < scene->getNumLights(); i++) {
 		Vector lightVector = scene->getLight(i)->position - hitPoint;
-		lightVector.normalize();
+		// do not normalize here because we need the length for the grid and bvh acceleration structures
 
 		if (lightVector * normal > 0) { 
 			
@@ -541,8 +576,12 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			float nearestShadowHit = FLT_MAX;
 			Object* nearestShadowObject = NULL;
 
-			if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
+			bool shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
+
+			if (!shadowHit) {
 				// no object between the hit point and the light
+
+				lightVector.normalize();
 				Material* material = nearestObject->GetMaterial();
 				Vector hitpointToEye = ray.direction * -1;
 				Vector halfway = (lightVector + hitpointToEye).normalize(); 
