@@ -49,30 +49,45 @@ Vector Triangle::getNormal(Vector point)
 // Ray/Triangle intersection test using Tomas Moller-Ben Trumbore algorithm.
 //
 
-bool Triangle::intercepts(Ray& r, float& t ) {
+bool Triangle::intercepts(Ray& r, float& t) {
+	Vector v0v1 = points[1] - points[0];
+	Vector v0v2 = points[2] - points[0];
 
-	Vector v0v1 = points[0] - points[1];
-	Vector v0v2 = points[0] - points[2];
+	Vector N = v0v1 % v0v2;
+	float area2 = N.length();
 
-	Vector pvec = r.direction % v0v2;
-	float det = v0v1 * pvec;
+	Vector C, P;
+	float NdotRayDirection = N * r.direction;
 
-	if (det < EPSILON) return false;
+	if (std::fabs(NdotRayDirection) < EPSILON) // almost 0 
+		return false; // ray parallel to triangle
 
-	float invDet = 1 / det;
+	float d = -1 * (N * points[0]);
+	t = -1 * ((N * r.origin) + d) / NdotRayDirection;
 
-	Vector tvec = r.origin - points[0];
-	float u = (tvec * pvec) * invDet;
-	if (u < 0 || u > 1) return false;
+	if (t < 0) return false; // triangle behind the ray
 
-	Vector qvec = tvec % v0v1;
-	float v = (r.direction * qvec) * invDet;
-	if (v < 0 || u + v > 1) return false;
+	P = r.origin + r.direction * t;
 
-	t = (v0v2 * qvec) * invDet;
+	// Edge 0
+	Vector vp0 = P - points[0];
+	C = v0v1 % vp0;
+	if ((N * C) < 0) return false; // P is on the right side
 
+	// Edge 1
+	Vector v1v2 = points[2] - points[1];
+	Vector vp1 = P - points[1];
+	C = v1v2 % vp1;
+	if ((N * C) < 0) return false; // P is on the right side
 
-	return (true);
+	// Edge 2
+	Vector v2v0 = points[0] - points[2];
+	Vector vp2 = P - points[2];
+	C = v2v0 % vp2;
+	if ((N * C) < 0) return false; // P is on the right side
+
+	return true;
+
 }
 
 Plane::Plane(Vector& a_PN, float a_D)
