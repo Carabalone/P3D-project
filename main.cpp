@@ -475,6 +475,29 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 
 
+bool getShadowHit(Ray ray, Object* hitObj, float t) {
+	bool shadowHit;
+
+	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
+	switch (scene->GetAccelStruct()) {
+	case (NONE): {
+			ray.direction.normalize();
+			shadowHit = getNearestIntersection(ray, t, hitObj);
+			break;
+		};
+	case (GRID_ACC): {
+			shadowHit = grid_ptr->Traverse(ray, &hitObj, hitPoint);
+			break;
+		};
+	case (BVH_ACC): {
+			shadowHit = bvh_ptr->Traverse(ray, &hitObj, hitPoint);
+			break;
+		};
+	}
+
+	return shadowHit;
+}
+
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	Color color = Color();
@@ -502,7 +525,19 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				return color;
 			}
 			break;
-		}
+		};
+		case (BVH_ACC): {
+			if (!bvh_ptr->Traverse(ray, &nearestObject, hitPoint)) {
+				if (skybox_flg) {
+					color = scene->GetSkyboxColor(ray);
+				}
+				else {
+					color = (scene->GetBackgroundColor());
+				}
+				return color;
+			}
+			break;
+		};
 	}
 
 	 hitPoint = ray.origin + ray.direction * nearestHit;
@@ -543,14 +578,15 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					float nearestShadowHit = FLT_MAX;
 					Object* nearestShadowObject = NULL;
 
-					if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) 
-					{
-						lightVector.normalize();
+			bool shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
 
-						// no object between the hit point and the light
-						Material* material = nearestObject->GetMaterial();
-						Vector hitpointToEye = ray.direction * -1;
-						Vector halfway = (lightVector + hitpointToEye).normalize();
+			if (!shadowHit) {
+				// no object between the hit point and the light
+
+				lightVector.normalize();
+				Material* material = nearestObject->GetMaterial();
+				Vector hitpointToEye = ray.direction * -1;
+				Vector halfway = (lightVector + hitpointToEye).normalize(); 
 
 						Color diffuseColor = material->GetDiffColor();
 						float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
