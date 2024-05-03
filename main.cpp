@@ -486,6 +486,7 @@ bool getShadowHit(Ray ray, Object* hitObj, float t) {
 			break;
 		};
 	case (GRID_ACC): {
+			ray.direction.normalize();
 			shadowHit = grid_ptr->Traverse(ray, &hitObj, hitPoint);
 			break;
 		};
