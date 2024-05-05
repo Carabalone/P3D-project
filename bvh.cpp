@@ -94,7 +94,19 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node) {
 			std::cout << "ACCESS VIOLATION\n";
 		}
 		std::sort(objects.begin() + left_index, objects.begin() + right_index, cmp);
-		
+
+		// check if either side is empty
+		if (objects[left_index]->getCentroid().getAxisValue(axis) > midPoint ||
+			objects[right_index - 1]->getCentroid().getAxisValue(axis) < midPoint) {
+
+			float sum = 0.0f;
+			for (int i = left_index; i < right_index; i++) {
+				sum += objects[i]->getCentroid().getAxisValue(axis);
+			}
+
+			midPoint = sum / (right_index - left_index);
+		}
+
 		//TODO substitute for binary search
 		int i = 0, split_index = -1;
 		for (int i = left_index; i < right_index; i++) {
@@ -107,9 +119,18 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node) {
 			}
 			i++;
 		}
-		if (split_index == -1) {
+
+		// if split index has less then a leaf on one side, then we need to recompute it
+		// Example: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], left_index = 0, right_index = 6
+		// if split_index = 1, it is less than 2. We need to recompute it.
+		// if split_index = 6, we need to recompute it.
+		if (split_index == -1 || split_index < left_index + 2 || split_index > right_index - 1) {
 			split_index = left_index + (right_index - left_index) / 2;
 		}
+
+		std::cout << "Axis: " << axis << "\n";
+		std::cout << "Midpoint: " << midPoint << "\n";
+		std::cout << "Split index: " << split_index << "\n";
 
 		Vector min = Vector(FLT_MAX, FLT_MAX, FLT_MAX), max = Vector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 		AABB leftAABB = AABB(min, max);
@@ -195,6 +216,7 @@ bool BVH::Traverse(Ray& ray, Object** hit_obj, Vector& hit_point) {
 			}
 		}
 		else { // is leaf
+			auto total = currentNode->getIndex() + currentNode->getNObjs();
 			for (int i = currentNode->getIndex(); i < currentNode->getIndex() + currentNode->getNObjs(); i++) {
 				if (objects[i]->intercepts(localRay, tmin)) {
 					hit = true;
@@ -215,7 +237,7 @@ bool BVH::Traverse(Ray& ray, Object** hit_obj, Vector& hit_point) {
 			}
 		}
 
-		if (!found && stack.empty()) {
+		if (!found) {
 			break;
 		}
 	}
