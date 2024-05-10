@@ -49,45 +49,40 @@ Vector Triangle::getNormal(Vector point)
 // Ray/Triangle intersection test using Tomas Moller-Ben Trumbore algorithm.
 //
 
-bool Triangle::intercepts(Ray& r, float& t ) {
-	Vector v0v1 = points[1] - points[0];
-	Vector v0v2 = points[2] - points[0];
+bool Triangle::intercepts(Ray& r, float& t) {
 
-	Vector N = v0v1 % v0v2;
-	float area2 = N.length();
+	Vector p0 = points[0], p1 = points[1], p2 = points[2];
 
-	Vector C, P;
-	float NdotRayDirection = N * r.direction;
+	// Find vectors for two edges sharing v0 
+	Vector p0p1 = p1 - p0;
+	Vector p0p2 = p2 - p0;
 
-	if (std::fabs(NdotRayDirection) < EPSILON) // almost 0 
-		return false; // ray parallel to triangle
+	Vector pVec = r.direction % p0p2;
 
-	float d = -1 * (N * points[0]);
-	t = -1 * ((N * r.origin) + d) / NdotRayDirection;
+	float det = p0p1 * pVec;
 
-	if (t < 0) return false; // triangle behind the ray
+	if (std::fabs(det) < 0.000001f) return false; // ray and triangle are parallel if det is close to 0
 
-	P = r.origin + r.direction * t;
+	float inv_det = 1.0f / det;
 
-	// Edge 0
-	Vector vp0 = P - points[0];
-	C = v0v1 % vp0;
-	if ((N * C) < 0) return false; // P is on the right side
+	// Calculate distance from v0 to ray origin
+	Vector tVec = r.origin - p0;
 
-	// Edge 1
-	Vector v1v2 = points[2] - points[1];
-	Vector vp1 = P - points[1];
-	C = v1v2 % vp1;
-	if ((N * C) < 0) return false; // P is on the right side
+	// Calculate U parameter and test bounds 
+	float u = inv_det * (tVec * pVec);
+	if (u < 0.0f || u > 1.0f) return false;
 
-	// Edge 2
-	Vector v2v0 = points[0] - points[2];
-	Vector vp2 = P - points[2];
-	C = v2v0 % vp2;
-	if ((N * C) < 0) return false; // P is on the right side
+	Vector qVec = tVec % p0p1;
 
-	return true;
+	// Calculate V parameter and test bounds
+	float v = inv_det * (r.direction * qVec);
+	if (v < 0.0f || u + v > 1.0f) return false;
 
+	// Calculate t, scale parameters, ray intersects triangle
+	t = inv_det * (p0p2 * qVec);
+	if (t > 0.000001f) return true;
+
+	return false;
 }
 
 Plane::Plane(Vector& a_PN, float a_D)

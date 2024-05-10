@@ -24,8 +24,10 @@
 #include "maths.h"
 #include "macros.h"
 
+//#define DEBUG
+
 //Enable OpenGL drawing.  
-bool drawModeEnabled = true;
+bool drawModeEnabled = false;
 
 bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
@@ -498,7 +500,7 @@ void fresnel(Vector& I, Vector& N, const float& ior, float& kr)
 }
 
 bool getShadowHit(Ray ray, Object* hitObj, float t) {
-	bool shadowHit;
+	bool shadowHit = false;
 
 	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
 	switch (scene->GetAccelStruct()) {
@@ -550,7 +552,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			break;
 		};
 		case (BVH_ACC): {
-			if (!bvh_ptr->Traverse(ray, &nearestObject, hitPoint)) {
+			bool hit = bvh_ptr->Traverse(ray, &nearestObject, hitPoint);
+			if (!hit) {
 				if (skybox_flg) {
 					color = scene->GetSkyboxColor(ray);
 				}
@@ -607,7 +610,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		float roughness = 0.1f;
 
 		reflectionDir = reflectionDir +  rnd_unit_sphere() * roughness;
-		Ray refRay = Ray(hitPoint, reflectionDir);
+		Ray refRay = Ray(hitPoint, reflectionDir.normalize());
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1);
 
 		float kr = 0;
@@ -635,11 +638,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 
 		Vector refractedDir =  ray.direction * eta  + normal*(eta * cosi - sqrtf(kt));
-		Ray refRay = Ray(hitPoint, refractedDir);
+		Ray refRay = Ray(hitPoint, refractedDir.normalize());
 		Color  refractedColor = rayTracing(refRay, depth + 1, ior_1);
 
 	
-		color += refractedColor * kt;
+		color += refractedColor * 0.5f;
 	}
 
 	return color;
@@ -662,37 +665,59 @@ void renderScene()
 	}
 	int total = RES_X * RES_Y;
 
+	int n = scene->GetSamplesPerPixel();
+
+#ifdef DEBUG
+	int total_steps = RES_X * RES_Y * n * n;
+#endif
+	int current = 0;
 	for (int y = 0; y < RES_Y; y++)
 	{
 		for (int x = 0; x < RES_X; x++)
 		{
 			Color color;
 
-			int n = scene->GetSamplesPerPixel();
+			if (n > 0) {
 
-			for (int p = 0; p < n; p++) {
-				for (int q = 0; q < n; q++) {
+				for (int p = 0; p < n; p++) {
+					for (int q = 0; q < n; q++) {
 
-					Vector subpixel;  //viewport coordinates
-					subpixel.x = x + (p+ rand_float()) /n;
-					subpixel.y = y + (q + rand_float()) / n;
-					subpixel.z = -1 * scene->GetCamera()->GetPlaneDist();
+						Vector subpixel;  //viewport coordinates
+						subpixel.x = x + (p+ rand_float()) /n;
+						subpixel.y = y + (q + rand_float()) / n;
+						subpixel.z = -1 * scene->GetCamera()->GetPlaneDist();
 
-					Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
+						Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
 
-					//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
-					Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
-					//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
-					color += rayTracing(subray, 1, 1.0).clamp();
+						//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+						Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
+						//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
+						color += rayTracing(subray, 1, 1.0).clamp();
 
+						#ifdef DEBUG
+						current++;
+
+						if (current % 10000 == 1) {
+							std::cout << "Step " << current << " / " << total_steps << std::endl;
+						}
+						#endif
+
+					}
 				}
+				color = color / (float)pow(n, 2);
+			}
+			else {
+				Vector pixel;  //viewport coordinates
+				pixel.x = x;
+				pixel.y = y;
+				pixel.z = -1 * scene->GetCamera()->GetPlaneDist();
+
+				// Without jittering antialiasing
+				Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+				color = rayTracing(ray, 1, 1.0).clamp();
 			}
 
-			color = color / (float)pow(n, 2);
 
-			// Without jittering antialiasing
-			//Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
-			//color = rayTracing(ray, 1, 1.0).clamp();
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());

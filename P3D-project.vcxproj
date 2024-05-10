@@ -182,6 +182,8 @@
     <None Include="P3D_Scenes\balls_low.p3f" />
     <None Include="P3D_Scenes\balls_medium.p3f" />
     <None Include="P3D_Scenes\dof.p3f" />
+    <None Include="P3D_Scenes\dragon.p3f" />
+    <None Include="P3D_Scenes\mount_high.p3f" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="skybox\back.jpg" />
