@@ -544,6 +544,10 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		};
 	}
 
+	if (nearestObject == NULL) {
+		return scene->GetBackgroundColor();
+	}
+
 	 hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector geom_normal = nearestObject->getNormal(hitPoint);
 
@@ -743,6 +747,7 @@ void renderScene()
 
 #ifdef DEBUG
 	int total_steps = RES_X * RES_Y * n * n;
+	int total_no_spp = RES_X * RES_Y;
 #endif
 	int current = 0;
 	for (int y = 0; y < RES_Y; y++)
@@ -924,6 +929,7 @@ void init_scene(void)
 		}
 		bvh_ptr->Build(objs);
 		printf("BVH built.\n\n");
+		printf("num of objects: %d\n", bvh_ptr->getNumObjects());
 	}
 	else
 		printf("No acceleration data structure.\n\n");
