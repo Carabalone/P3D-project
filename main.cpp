@@ -24,6 +24,8 @@
 #include "maths.h"
 #include "macros.h"
 
+//#define DEBUG
+
 //Enable OpenGL drawing.  
 bool drawModeEnabled = true;
 
@@ -476,7 +478,7 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 
 
 bool getShadowHit(Ray ray, Object* hitObj, float t) {
-	bool shadowHit;
+	bool shadowHit = false;
 
 	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
 	switch (scene->GetAccelStruct()) {
@@ -528,7 +530,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			break;
 		};
 		case (BVH_ACC): {
-			if (!bvh_ptr->Traverse(ray, &nearestObject, hitPoint)) {
+			bool hit = bvh_ptr->Traverse(ray, &nearestObject, hitPoint);
+			if (!hit) {
 				if (skybox_flg) {
 					color = scene->GetSkyboxColor(ray);
 				}
@@ -736,6 +739,12 @@ void renderScene()
 	}
 	int total = RES_X * RES_Y;
 
+	int n = scene->GetSamplesPerPixel();
+
+#ifdef DEBUG
+	int total_steps = RES_X * RES_Y * n * n;
+#endif
+	int current = 0;
 	for (int y = 0; y < RES_Y; y++)
 	{
 		for (int x = 0; x < RES_X; x++)
@@ -748,17 +757,17 @@ void renderScene()
 			for (int p = 0; p < n; p++) {
 				for (int q = 0; q < n; q++) {
 
-					Vector subpixel;  //viewport coordinates
-					subpixel.x = x + (p+ rand_float()) /n;
-					subpixel.y = y + (q + rand_float()) / n;
-					subpixel.z = -1 * scene->GetCamera()->GetPlaneDist();
+						Vector subpixel;  //viewport coordinates
+						subpixel.x = x + (p+ rand_float()) /n;
+						subpixel.y = y + (q + rand_float()) / n;
+						subpixel.z = -1 * scene->GetCamera()->GetPlaneDist();
 
-					Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
+						Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
 
-					//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
-					Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
-					//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
-					color += rayTracing(subray, 1, 1.0).clamp();
+						//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
+						Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
+						//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
+						color += rayTracing(subray, 1, 1.0).clamp();
 
 				}
 			}
