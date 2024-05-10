@@ -473,6 +473,7 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 
+
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	Color color = Color();
@@ -487,9 +488,9 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Vector hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector geom_normal = nearestObject->getNormal(hitPoint);
 
-	//check if ray is outside: if ray.direction*normal < 0 -> normal * (-1)
+	//check if ray is outside
 	bool isInside = false;
-	Vector normal = geom_normal;  //shading normal
+	Vector normal = geom_normal;
 
 
 	if (ray.direction * geom_normal > 0)
@@ -497,33 +498,80 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		isInside = true;
 		normal = geom_normal * (-1);
 	}
-	//add offset   Avoid this, because it will depend if it is refraction or reflection
-	//hitPoint = hitPoint + normal * EPSILON;
 
-	Vector bias = normal * EPSILON;  //bias with direction of shading normal
+	Vector bias = normal * EPSILON; 
 
 	//Calculation of direct illumination only if outside
-
 	if (!isInside) {
 
-		for (int i = 0; i < scene->getNumLights(); i++) {
+		for (int i = 0; i < scene->getNumLights(); i++) 
+		{
+			
+			int spp = scene->GetSamplesPerPixel();
 
 			//Soft shadows
-			Vector r = Vector(rand_float()-0.5f, rand_float()-0.5f, 0);
-			//Vector r = Vector(0.f, 0.f, 0.f);
+			if(spp != 0) //with anti-aliasing
+			{
+				Vector r = Vector(rand_float() - 0.5f, rand_float() - 0.5f, 0);
 
-			Vector lightVector = scene->getLight(i)->position - hitPoint + r;
-			lightVector.normalize();
+				Vector lightVector = scene->getLight(i)->position - hitPoint + r;
+				lightVector.normalize();
 
-			if (lightVector * normal > 0) {
+				if (lightVector * normal > 0.0) 
+				{
+					Ray shadowRay(hitPoint + bias, lightVector);
 
-				Ray shadowRay(hitPoint + bias, lightVector);
+					float nearestShadowHit = FLT_MAX;
+					Object* nearestShadowObject = NULL;
 
-				float nearestShadowHit = FLT_MAX;
-				Object* nearestShadowObject = NULL;
+					if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) 
+					{
+						// no object between the hit point and the light
+						Material* material = nearestObject->GetMaterial();
+						Vector hitpointToEye = ray.direction * -1;
+						Vector halfway = (lightVector + hitpointToEye).normalize();
 
-				if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) {
-					// no object between the hit point and the light
+						Color diffuseColor = material->GetDiffColor();
+						float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
+
+						Color specColor = material->GetSpecColor();
+						float specular = material->GetSpecular() *
+							std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
+
+						color += diffuseColor * diffuse + specColor * specular;
+					}
+				}
+			}
+			else //without anti-aliasing, using area light
+			{
+				Vector lightVector = scene->getLight(i)->position - hitPoint;
+				lightVector.normalize();
+
+				if (lightVector * normal > 0.)
+				{
+					std::vector<Ray> shadow_rays;
+
+					for (float k = -0.2;k <= 0.2; k+=0.1)
+						for (float j = -0.2; j <= 0.2; j += 0.1)
+						{
+							Vector part_light = scene->getLight(i)->position + Vector(k, j, 0.);
+							Vector new_hitpoint = hitPoint + bias;
+							shadow_rays.push_back(Ray(new_hitpoint, (part_light - hitPoint).normalize()));
+						}
+
+					float num_shadow_rays = shadow_rays.size();
+					float lit_counter = 0.;
+
+					for (const Ray& shadow_ray : shadow_rays)
+					{
+						float nearestShadowHit = FLT_MAX;
+						Object* nearestShadowObject = NULL;
+						if (!getNearestIntersection(shadow_ray, nearestShadowHit, nearestShadowObject))
+							lit_counter++;
+					}
+
+					float proportion = lit_counter / num_shadow_rays;
+
 					Material* material = nearestObject->GetMaterial();
 					Vector hitpointToEye = ray.direction * -1;
 					Vector halfway = (lightVector + hitpointToEye).normalize();
@@ -535,7 +583,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					float specular = material->GetSpecular() *
 						std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
 
-					color += diffuseColor * diffuse + specColor * specular;
+					color += (diffuseColor * diffuse + specColor * specular) * proportion;
+
 				}
 			}
 		}
@@ -547,7 +596,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	if (nearestObject->GetMaterial()->GetReflection() > EPSILON && nearestObject->GetMaterial()->GetTransmittance() == 0.0) {
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 
-		float roughness = 0.1f;
+		float roughness = 0.0f;
 
 		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
 		Ray refRay = Ray(hitPoint + bias, reflectionDir);
@@ -634,7 +683,8 @@ void renderScene()
 			Color color;
 
 			int n = scene->GetSamplesPerPixel();
-
+			if(n!=0)
+			{
 			for (int p = 0; p < n; p++) {
 				for (int q = 0; q < n; q++) {
 
@@ -652,12 +702,19 @@ void renderScene()
 
 				}
 			}
-
+			
 			color = color / (float)pow(n, 2);
+			}
+			else
+			{
+				Vector pixel;  //viewport coordinates
+				pixel.x = x + 0.5f;
+				pixel.y = y + 0.5f;
+				// Without jittering antialiasing
 
-			// Without jittering antialiasing
-			//Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
-			//color = rayTracing(ray, 1, 1.0).clamp();
+				Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+				color = rayTracing(ray, 1, 1.0).clamp();
+			}
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
