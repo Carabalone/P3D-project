@@ -10,11 +10,6 @@ enum Axis {
 	Z = 2
 };
 
-struct NodeInfo {
-	BVH::BVHNode* node;
-	float t;
-};
-
 BVH::BVHNode::BVHNode(void) {}
 
 void BVH::BVHNode::setAABB(AABB& bbox_) { this->bbox = bbox_; }
@@ -77,7 +72,8 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node) {
 		float midPoint = (node->getAABB().max.getAxisValue(axis) + node->getAABB().min.getAxisValue(axis)) / 2.0f;
 
 		// sort the objects based on the axis
-		ComparePrimitives cmp = ComparePrimitives(axis);
+		Comparator cmp = Comparator();
+		cmp.dimension = axis;
 		std::sort(objects.begin() + left_index, objects.begin() + right_index, cmp);
 
 		unsigned int split_index;
@@ -135,73 +131,87 @@ bool BVH::Traverse(Ray& ray, Object** hit_obj, Vector& hit_point) {
 	float tmp = 0.0f;
 	float tmin = FLT_MAX;  //contains the closest primitive intersection
 	bool hit = false;
-	Ray localRay = ray;
-	float t;
 
 	BVHNode* currentNode = nodes[0];
 
-	std::stack<NodeInfo> stack;
-
-	if (!currentNode->getAABB().intercepts(localRay, t)) {
+	if (!currentNode->getAABB().intercepts(ray, tmp)) {
 		return false;
 	}
 
+	BVHNode* leftChild = nodes[currentNode->getIndex()];
+	BVHNode* rightChild = nodes[currentNode->getIndex() + 1];
+
 	while (true) {
 		if (!currentNode->isLeaf()) {
-			NodeInfo leftNodeInfo = { nodes[currentNode->getIndex()], 0.0f };
-			NodeInfo rightNodeInfo = { nodes[currentNode->getIndex() + 1], 0.0f };
+			leftChild = nodes[currentNode->getIndex()];
+			rightChild = nodes[currentNode->getIndex() + 1];
 
-			bool rightHit = rightNodeInfo.node->getAABB().intercepts(localRay, rightNodeInfo.t);
-			bool leftHit = leftNodeInfo.node->getAABB().intercepts(localRay, leftNodeInfo.t);
-			if (rightNodeInfo.node->getAABB().isInside(localRay.origin)) {
-				rightNodeInfo.t = 0.0f;
+			float r_t = 0.0f;
+			float l_t = 0.0f;
+
+			bool rightHit = rightChild->getAABB().intercepts(ray, r_t);
+			bool leftHit = leftChild->getAABB().intercepts(ray, l_t);
+			if (rightChild->getAABB().isInside(ray.origin)) {
+				r_t = 0.0f;
 			}
-			if (leftNodeInfo.node->getAABB().isInside(localRay.origin)) {
-				leftNodeInfo.t = 0.0f;
+			if (leftChild->getAABB().isInside(ray.origin)) {
+				l_t = 0.0f;
 			}
+
+			if (leftHit && l_t > tmin)
+				leftHit = false;
+
+			if (rightHit && r_t > tmin)
+				rightHit = false;
 
 			if (leftHit && rightHit) {
 				// both hit, put the farthest on the stack
-				if (leftNodeInfo.t > rightNodeInfo.t) {
-					stack.push(leftNodeInfo);
-					currentNode = rightNodeInfo.node;
+				if (l_t > r_t) {
+					hit_stack.push(StackItem(leftChild, l_t));
+					currentNode = rightChild;
 					continue;
 				}
 				else {
-					stack.push(rightNodeInfo);
-					currentNode = leftNodeInfo.node;
+					hit_stack.push(StackItem(rightChild, r_t));
+					currentNode = leftChild;
 					continue;
 				}
 			} 
 			else if (rightHit) { // only right hits
-				stack.push(rightNodeInfo);
-				currentNode = rightNodeInfo.node;
+				currentNode = rightChild;
 				continue;
 			}
 			else if (leftHit) {
-				stack.push(leftNodeInfo);
-				currentNode = leftNodeInfo.node;
+				currentNode = leftChild;
 				continue;
 			}
 		}
 		else { // is leaf
+			Object* obj;
 			for (int i = currentNode->getIndex(); i < currentNode->getIndex() + currentNode->getNObjs(); i++) {
-				if (objects[i]->intercepts(localRay, tmp) && tmp < tmin) {
-					hit = true;
-					*hit_obj = objects[i];
+				obj = objects[i];
+				if (obj->intercepts(ray, tmp) && tmp < tmin && tmp >= 0.0f) {
 					tmin = tmp;
+					*hit_obj = obj;
 				}
+			}
+
+			if (hit_obj != NULL) {
+				hit = true;
+			}
+			else {
+				hit = false;
 			}
 		}
 
 		bool found = false;
-		while (!stack.empty()) {
-			NodeInfo nodeInfo = stack.top();
-			stack.pop();
+		while (!hit_stack.empty()) {
+			StackItem nodeInfo = hit_stack.top();
+			hit_stack.pop();
 			
 			if (nodeInfo.t < tmin) {
 				found = true;
-				currentNode = nodeInfo.node;
+				currentNode = nodeInfo.ptr;
 				break;
 			}
 		}
@@ -211,89 +221,96 @@ bool BVH::Traverse(Ray& ray, Object** hit_obj, Vector& hit_point) {
 		}
 
 		if (hit) {
-			hit_point = localRay.origin + localRay.direction * tmin;
+			hit_point = ray.origin + ray.direction * tmin;
 		}
 
+		if (hit && hit_obj == NULL) {
+			std::cout << "PANIC! hit_obj is NULL\n";
+			hit = false;
+		}
 		return hit;
 	}
 }
 
 bool BVH::Traverse(Ray& ray) {  //shadow ray with length
 
-	float tmp;
+	float tmp = 0.0f;
+	float tmin = FLT_MAX;  //contains the closest primitive intersection
 
 	double length = ray.direction.length(); //distance between light and intersection point
 	ray.direction.normalize();
 
-	float tmin = FLT_MAX;  //contains the closest primitive intersection
-	bool hit = false;
-	Ray localRay = ray;
-	float t;
-
 	BVHNode* currentNode = nodes[0];
 
-	std::stack<NodeInfo> stack;
-
-	if (!currentNode->getAABB().intercepts(localRay, t)) {
+	if (!currentNode->getAABB().intercepts(ray, tmp)) {
 		return false;
 	}
 
+	BVHNode* leftChild = nodes[currentNode->getIndex()];
+	BVHNode* rightChild = nodes[currentNode->getIndex() + 1];
+
 	while (true) {
 		if (!currentNode->isLeaf()) {
-			NodeInfo leftNodeInfo = { nodes[currentNode->getIndex()], 0.0f };
-			NodeInfo rightNodeInfo = { nodes[currentNode->getIndex() + 1], 0.0f };
+			leftChild = nodes[currentNode->getIndex()];
+			rightChild = nodes[currentNode->getIndex() + 1];
 
-			bool rightHit = rightNodeInfo.node->getAABB().intercepts(localRay, rightNodeInfo.t);
-			bool leftHit = leftNodeInfo.node->getAABB().intercepts(localRay, leftNodeInfo.t);
+			float r_t = 0.0f;
+			float l_t = 0.0f;
 
-			if (rightNodeInfo.node->getAABB().isInside(localRay.origin)) {
-				rightNodeInfo.t = 0.0f;
+			bool rightHit = rightChild->getAABB().intercepts(ray, r_t);
+			bool leftHit = leftChild->getAABB().intercepts(ray, l_t);
+			if (rightChild->getAABB().isInside(ray.origin)) {
+				r_t = 0.0f;
 			}
-			if (leftNodeInfo.node->getAABB().isInside(localRay.origin)) {
-				leftNodeInfo.t = 0.0f;
+			if (leftChild->getAABB().isInside(ray.origin)) {
+				l_t = 0.0f;
 			}
+
+			if (leftHit && l_t > tmin)
+				leftHit = false;
+
+			if (rightHit && r_t > tmin)
+				rightHit = false;
 
 			if (leftHit && rightHit) {
 				// both hit, put the farthest on the stack
-				if (leftNodeInfo.t > rightNodeInfo.t) {
-					stack.push(leftNodeInfo);
-					currentNode = rightNodeInfo.node;
+				if (l_t > r_t) {
+					hit_stack.push(StackItem(leftChild, l_t));
+					currentNode = rightChild;
 					continue;
 				}
 				else {
-					stack.push(rightNodeInfo);
-					currentNode = leftNodeInfo.node;
+					hit_stack.push(StackItem(rightChild, r_t));
+					currentNode = leftChild;
 					continue;
 				}
 			} 
-			else if (leftHit) { // only left hits
-				stack.push(leftNodeInfo);
-				currentNode = leftNodeInfo.node;
+			else if (rightHit) { // only right hits
+				currentNode = rightChild;
 				continue;
 			}
-			else if (rightHit) { // only right hits
-				stack.push(rightNodeInfo);
-				currentNode = rightNodeInfo.node;
+			else if (leftHit) {
+				currentNode = leftChild;
 				continue;
 			}
 		}
 		else { // is leaf
+			Object* obj;
 			for (int i = currentNode->getIndex(); i < currentNode->getIndex() + currentNode->getNObjs(); i++) {
-				if (objects[i]->intercepts(localRay, tmp)) {
+				obj = objects[i];
+				if (obj->intercepts(ray, tmp) && tmp < length) {
 					return true;
 				}
 			}
 		}
-
-		if (stack.empty()) {
-			return false;
-		}
-		auto poppedValue = stack.top();
-		stack.pop();
-		currentNode = poppedValue.node;
+		if (hit_stack.empty())
+			break;
+		StackItem poppedItem = hit_stack.top();
+		hit_stack.pop();
+		currentNode = poppedItem.ptr;
 
 	}
-
-	return(false);
+	return false;
 }	
+
 
