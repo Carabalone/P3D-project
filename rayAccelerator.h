@@ -49,6 +49,7 @@ class BVH
 		}
 	};
 
+	public:
 	class BVHNode {
 	private:
 		AABB bbox;
