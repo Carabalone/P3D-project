@@ -27,7 +27,7 @@
 //#define DEBUG
 
 //Enable OpenGL drawing.  
-bool drawModeEnabled = true;
+bool drawModeEnabled = false;
 
 bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
@@ -458,9 +458,11 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 {
 	nearestHit = FLT_MAX;
 	nearestObject = NULL;
+
 	for (int i = 0; i < scene->getNumObjects(); i++) {
 		Object* object = scene->getObject(i);
 		float dist;
+
 		if (object->intercepts(ray, dist)) {
 			if (dist < nearestHit) {
 				nearestHit = dist;
@@ -468,20 +470,22 @@ bool getNearestIntersection(Ray ray, float& nearestHit, Object*& nearestObject)
 			}
 		}
 	}
+
 	if (nearestObject == NULL) {
 		return false;
 	}
+
 	return true;
 }
 
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 
-
 bool getShadowHit(Ray ray, Object* hitObj, float t) {
 	bool shadowHit = false;
-
 	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
-	switch (scene->GetAccelStruct()) {
+
+	switch (scene->GetAccelStruct()) 
+	{
 	case (NONE): {
 			ray.direction.normalize();
 			shadowHit = getNearestIntersection(ray, t, hitObj);
@@ -501,6 +505,34 @@ bool getShadowHit(Ray ray, Object* hitObj, float t) {
 	return shadowHit;
 }
 
+float getShadowCoeff(int lightNum, Vector hitPoint, Vector bias)
+{
+	std::vector<Ray> shadowRays;
+	for (float k = -0.2; k <= 0.2; k += 0.1)
+		for (float j = -0.2; j <= 0.2; j += 0.1)
+		{
+			Vector part_light = scene->getLight(lightNum)->position + Vector(k, j, 0.);
+			Vector new_hitpoint = hitPoint + bias;
+			Ray shadowRay = Ray(new_hitpoint, (part_light - hitPoint).normalize());
+
+			shadowRays.push_back(shadowRay);
+		}
+
+	float numShadowRays = shadowRays.size();
+	float litCounter = 0.;
+
+	for (const Ray& shadowRay : shadowRays)
+	{
+		float nearestShadowHit = FLT_MAX;
+		Object* nearestShadowObject = NULL;
+		if (!getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit))
+			litCounter++;
+	}
+
+	float proportion = litCounter / numShadowRays;
+	return proportion;
+}
+
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	Color color = Color();
@@ -509,7 +541,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Object* nearestObject = NULL;
 	Vector hitPoint = Vector(0.0f, 0.0f, 0.0f);
 
-	switch (scene->GetAccelStruct()) {
+	switch (scene->GetAccelStruct()) 
+	{
 		case (NONE): {
 			if (!getNearestIntersection(ray, nearestHit, nearestObject)) {
 				return scene->GetBackgroundColor();
@@ -520,12 +553,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		case (GRID_ACC): {
 			if (!grid_ptr->Traverse(ray, &nearestObject, hitPoint)) {
 				if (skybox_flg) {
-					color = scene->GetSkyboxColor(ray);
+					return color = scene->GetSkyboxColor(ray);
 				}
 				else {
-					color = (scene->GetBackgroundColor());
+					return color = (scene->GetBackgroundColor());
 				}
-				return color;
 			}
 			break;
 		};
@@ -533,12 +565,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			bool hit = bvh_ptr->Traverse(ray, &nearestObject, hitPoint);
 			if (!hit) {
 				if (skybox_flg) {
-					color = scene->GetSkyboxColor(ray);
+					return color = scene->GetSkyboxColor(ray);
 				}
 				else {
-					color = (scene->GetBackgroundColor());
+					return color = (scene->GetBackgroundColor());
 				}
-				return color;
 			}
 			break;
 		};
@@ -548,17 +579,15 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		return scene->GetBackgroundColor();
 	}
 
-	Vector geom_normal = nearestObject->getNormal(hitPoint);
+	Vector geomNormal = nearestObject->getNormal(hitPoint);
 
-	//check if ray is outside
 	bool isInside = false;
-	Vector normal = geom_normal;
+	Vector normal = geomNormal;
 
-
-	if (ray.direction * geom_normal > 0)
+	if (ray.direction * geomNormal > 0)
 	{
 		isInside = true;
-		normal = geom_normal * (-1);
+		normal = geomNormal * (-1);
 	}
 
 	Vector bias = normal * EPSILON; 
@@ -571,84 +600,54 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			
 			int spp = scene->GetSamplesPerPixel();
 
-			//Soft shadows
-			if(spp != 0) //with anti-aliasing
-			{
-				Vector r = Vector(rand_float() - 0.5f, rand_float() - 0.5f, 0);
-				Vector lightVector = scene->getLight(i)->position - hitPoint + r;
+			Vector lightVector = Vector(0.0, 0.0, 0.0);
+			float shadowCoeff = 0.0;;
+			float intensity = 0.0;
 
-				if (lightVector * normal > 0.0) 
+			if (spp != 0)
+			{
+				float lightSize = 1.0;
+				Vector r = Vector(rand_float() - lightSize / 2.0, rand_float() - lightSize / 2.0, 0.0);
+				lightVector = scene->getLight(i)->position - hitPoint + r;
+				intensity = lightVector * normal;
+
+				shadowCoeff = 1.0;
+			}
+			else
+			{
+				lightVector = scene->getLight(i)->position - hitPoint;
+				intensity = lightVector * normal;
+
+				shadowCoeff = getShadowCoeff(i, hitPoint, bias);
+			}
+
+			if (intensity > 0.0)
+			{
+				bool shadowHit = false;
+				if (spp != 0)
 				{
 					Ray shadowRay(hitPoint + bias, lightVector);
-
 					float nearestShadowHit = FLT_MAX;
 					Object* nearestShadowObject = NULL;
-
-					bool shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
-					if (!shadowHit) {
-						// no object between the hit point and the light
-
-						lightVector.normalize();
-						Material* material = nearestObject->GetMaterial();
-						Vector hitpointToEye = ray.direction * -1;
-						Vector halfway = (lightVector + hitpointToEye).normalize(); 
-
-						Color diffuseColor = material->GetDiffColor();
-						float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
-
-						Color specColor = material->GetSpecColor();
-						float specular = material->GetSpecular() *
-							std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
-
-						color += diffuseColor * diffuse + specColor * specular;
-					}
+					shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
 				}
-			}
-			else //without anti-aliasing, using area light
-			{
-				Vector lightVector = scene->getLight(i)->position - hitPoint;
 
-				if (lightVector * normal > 0.)
-				{
-					std::vector<Ray> shadow_rays;
-
-					for (float k = -0.2;k <= 0.2; k+=0.1)
-						for (float j = -0.2; j <= 0.2; j += 0.1)
-						{
-							Vector part_light = scene->getLight(i)->position + Vector(k, j, 0.);
-							Vector new_hitpoint = hitPoint + bias;
-							shadow_rays.push_back(Ray(new_hitpoint, (part_light - hitPoint).normalize()));
-						}
-
-					float num_shadow_rays = shadow_rays.size();
-					float lit_counter = 0.;
-
-					for (const Ray& shadow_ray : shadow_rays)
-					{
-						float nearestShadowHit = FLT_MAX;
-						Object* nearestShadowObject = NULL;
-						if (!getNearestIntersection(shadow_ray, nearestShadowHit, nearestShadowObject))
-							lit_counter++;
-					}
-
-					float proportion = lit_counter / num_shadow_rays;
+				if (!shadowHit && shadowCoeff > EPSILON) {
+					// no object between the hit point and the light 
 
 					lightVector.normalize();
-
-
 					Material* material = nearestObject->GetMaterial();
 					Vector hitpointToEye = ray.direction * -1;
-					Vector halfway = (lightVector + hitpointToEye).normalize();
+					Vector halfway = (lightVector + hitpointToEye).normalize(); 
 
 					Color diffuseColor = material->GetDiffColor();
-					float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
+					float diffuse = material->GetDiffuse() * std::fmax(lightVector * normal, 0.0f);
 
 					Color specColor = material->GetSpecColor();
 					float specular = material->GetSpecular() *
 						std::pow(std::fmax(normal * halfway, 0.0f), material->GetShine());
 
-					color += (diffuseColor * diffuse + specColor * specular) * proportion;
-
+					color += (diffuseColor * diffuse + specColor * specular) * shadowCoeff;
 				}
 			}
 		}
@@ -660,13 +659,13 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	if (nearestObject->GetMaterial()->GetReflection() > EPSILON && nearestObject->GetMaterial()->GetTransmittance() == 0.0) {
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 
-		float roughness = 0.0f;
+		float roughness = 0.1f;
 
 		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
 		Ray refRay = Ray(hitPoint + bias, reflectionDir);
 		Color reflectionColor = rayTracing(refRay, depth + 1, ior_1) * nearestObject->GetMaterial()->GetSpecColor();
 
-		color += reflectionColor * nearestObject->GetMaterial()->GetReflection();// *coefficient from p3f 
+		color += reflectionColor * nearestObject->GetMaterial()->GetReflection();
 	}
 
 	//dielectric
@@ -683,8 +682,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		float eta_t = nearestObject->GetMaterial()->GetRefrIndex();
 
 		if (isInside) {
-			//eta_i = eta_t;
-			eta_t = 1.0;  //air
+			eta_t = 1.0;
 		};
 
 		float sin_t = eta_i / eta_t * sin_i;
@@ -702,8 +700,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		Color  refractedColor = Color();
 		if (kt > 0.0) {
-			Vector refractedDir = t * sin_t + normal * ((-1) * cos_t);
-			//printf("Refractiton \n"); 
+			Vector refractedDir = t * sin_t + normal * ((-1) * cos_t); 
 			refractedDir.normalize();
 			Ray refrRay = Ray(hitPoint - bias, refractedDir);
 			refractedColor = rayTracing(refrRay, depth + 1, eta_t);
@@ -711,7 +708,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		Vector reflectionDir = (ray.direction - normal * 2 * (ray.direction * normal)).normalize();
 
-		float roughness = 0.f;
+		float roughness = 0.1f;
 		
 		reflectionDir = reflectionDir + rnd_unit_sphere() * roughness;
 		reflectionDir.normalize();
@@ -839,6 +836,7 @@ void setupCallbacks()
 	glutIdleFunc(renderScene);
 	glutTimerFunc(0, timer, 0);
 }
+
 void init(int argc, char* argv[])
 {
 	// set the initial camera position on its spherical coordinates
@@ -858,7 +856,6 @@ void init(int argc, char* argv[])
 	createBufferObjects();
 	setupCallbacks();
 }
-
 
 void init_scene(void)
 {
