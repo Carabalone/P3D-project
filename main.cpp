@@ -515,7 +515,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				Vector r = Vector(rand_float() - 0.5f, rand_float() - 0.5f, 0);
 
 				Vector lightVector = scene->getLight(i)->position - hitPoint + r;
-				lightVector.normalize();
 
 				if (lightVector * normal > 0.0) 
 				{
@@ -526,6 +525,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 					if (!getNearestIntersection(shadowRay, nearestShadowHit, nearestShadowObject)) 
 					{
+						lightVector.normalize();
+
 						// no object between the hit point and the light
 						Material* material = nearestObject->GetMaterial();
 						Vector hitpointToEye = ray.direction * -1;
@@ -545,7 +546,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			else //without anti-aliasing, using area light
 			{
 				Vector lightVector = scene->getLight(i)->position - hitPoint;
-				lightVector.normalize();
 
 				if (lightVector * normal > 0.)
 				{
@@ -571,6 +571,9 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					}
 
 					float proportion = lit_counter / num_shadow_rays;
+
+					lightVector.normalize();
+
 
 					Material* material = nearestObject->GetMaterial();
 					Vector hitpointToEye = ray.direction * -1;
