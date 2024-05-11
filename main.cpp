@@ -548,7 +548,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		return scene->GetBackgroundColor();
 	}
 
-	 hitPoint = ray.origin + ray.direction * nearestHit;
 	Vector geom_normal = nearestObject->getNormal(hitPoint);
 
 	//check if ray is outside
@@ -576,7 +575,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			if(spp != 0) //with anti-aliasing
 			{
 				Vector r = Vector(rand_float() - 0.5f, rand_float() - 0.5f, 0);
-
 				Vector lightVector = scene->getLight(i)->position - hitPoint + r;
 
 				if (lightVector * normal > 0.0) 
@@ -586,15 +584,14 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					float nearestShadowHit = FLT_MAX;
 					Object* nearestShadowObject = NULL;
 
-			bool shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
+					bool shadowHit = getShadowHit(shadowRay, nearestShadowObject, nearestShadowHit);
+					if (!shadowHit) {
+						// no object between the hit point and the light
 
-			if (!shadowHit) {
-				// no object between the hit point and the light
-
-				lightVector.normalize();
-				Material* material = nearestObject->GetMaterial();
-				Vector hitpointToEye = ray.direction * -1;
-				Vector halfway = (lightVector + hitpointToEye).normalize(); 
+						lightVector.normalize();
+						Material* material = nearestObject->GetMaterial();
+						Vector hitpointToEye = ray.direction * -1;
+						Vector halfway = (lightVector + hitpointToEye).normalize(); 
 
 						Color diffuseColor = material->GetDiffColor();
 						float diffuse = material->GetDiffuse() * std::fmax(normal * lightVector, 0.0f);
@@ -769,9 +766,7 @@ void renderScene()
 
 						Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture() / 2.0f;
 
-						//Ray subray = scene->GetCamera()->PrimaryRay(subpixel);
 						Ray subray = scene->GetCamera()->PrimaryRay(lens_sample, subpixel);
-						//Ray subray = scene->GetCamera()->RandomDiskPrimaryRay(subpixel);
 						color += rayTracing(subray, 1, 1.0).clamp();
 
 				}
