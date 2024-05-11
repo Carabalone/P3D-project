@@ -81,33 +81,7 @@ public:
 			n * (- 1 * plane_dist)
 		).normalize();
 
-		//if (debug) {
-		//	printf("Eye: (%f, %f, %f)\n", eye.x, eye.y, eye.z);
-		//	printf("Ray Direction: (%f, %f, %f)\n", ray_dir.x, ray_dir.y, ray_dir.z);
-		//}
-
 		return Ray(eye, ray_dir);  
-	}
-
-	Ray RandomDiskPrimaryRay(const Vector& pixel_sample) // DOF: Rays cast from a random disk sample to a pixel sample
-	{
-		Vector ray_dir;
-		Vector eye_offset;
-
-		set_rand_seed(time(NULL) * time(NULL));
-
-		Vector lens_sample = rnd_unit_disk() * (GetAperture() / 2.0f);
-
-		eye_offset = eye + u * lens_sample.x + v * lens_sample.y;
-
-		ray_dir = (
-			u * (((pixel_sample.x + 0.5f) / res_x) - lens_sample.x) +
-			v * (((pixel_sample.y + 0.5f) / res_y) - lens_sample.y) +
-			n * (-1 * plane_dist * focal_ratio)
-		).normalize();
-
-
-		return Ray(eye_offset, ray_dir);
 	}
 
 	Ray PrimaryRay(const Vector& lens_sample, const Vector& pixel_sample) // DOF: Rays cast from  a thin lens sample to a pixel sample
